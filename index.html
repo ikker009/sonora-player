@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Sonora · reproductor</title>
+<style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style>
+</head><body><div id="p"></div>
+<script>
+// Reproductor de YouTube para Sonora en iPhone. Dentro de las apps de iPhone, YouTube no deja
+// reproducir si la página no tiene una dirección web normal; esta página se la da. Sonora le manda
+// órdenes (cargar, pausa, volumen…) y esta le cuenta cómo va (tiempo, duración, estado).
+const auto = new URLSearchParams(location.hash.slice(1)).get('a') === '1';
+let P = null;
+const send = m => parent.postMessage(Object.assign({ sonoraYT: 1 }, m), '*');
+function tick() {
+  if (!P || !P.getCurrentTime) return;
+  try { send({ ev: 'tick', t: P.getCurrentTime(), d: P.getDuration(), r: P.getPlaybackRate(), id: (P.getVideoData() || {}).video_id }); } catch (e) {}
+}
+window.onYouTubeIframeAPIReady = () => {
+  P = new YT.Player('p', {
+    width: '100%', height: '100%',
+    playerVars: { autoplay: auto ? 1 : 0, playsinline: 1, rel: 0, fs: 0, origin: location.origin },
+    events: {
+      onReady: () => { send({ ev: 'ready' }); setInterval(tick, 250); },
+      onStateChange: e => { tick(); send({ ev: 'state', s: e.data }); },
+      onError: e => send({ ev: 'error', e: e.data })
+    }
+  });
+};
+const ALLOWED = ['loadVideoById', 'cueVideoById', 'playVideo', 'pauseVideo', 'stopVideo', 'seekTo', 'setVolume', 'mute', 'unMute', 'setPlaybackRate'];
+addEventListener('message', ev => {
+  const m = ev.data; if (!m || !m.sonoraCmd || !P || !ALLOWED.includes(m.fn)) return;
+  try { P[m.fn](...(m.args || [])); } catch (e) {}
+});
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body></html>
